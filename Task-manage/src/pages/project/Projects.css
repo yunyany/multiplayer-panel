@@ -1,0 +1,617 @@
+/* Projects.css */
+
+/* ⚠️ `*` 是全局选择器，这里改的是「整个应用」而不只是这一页。
+   box-sizing 是布局需要的，留着；
+   但 user-select 只影响这一页的体验，所以挪到 .projects-container 上去，
+   否则登录页/注册页的输入框也会受它影响。 */
+* {
+    box-sizing: border-box;
+}
+
+.projects-container {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    background: linear-gradient(to right, rgb(18, 35, 76), rgb(135, 56, 108));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    /* 只在这一页禁止选中文字（拖拽时更顺手） */
+}
+
+/* ===== 顶部导航栏 ===== */
+.projects-header {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    /* 只留一个高度。原来还有 max-height: 7vh 会和它打架 */
+    padding: 0 30px;
+    background: linear-gradient(to right, rgb(12, 26, 57), rgb(49, 33, 68));
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.projects-nav-left,
+.projects-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    font-size: 16px;
+    color: #c2c2c2;
+    font-weight: 600;
+}
+
+.projects-nav-left span,
+.projects-nav-right span {
+    cursor: pointer;
+    transition: color 0.3s;
+    white-space: nowrap;
+}
+
+.projects-nav-left span:hover,
+.projects-nav-right span:hover {
+    color: #667eea;
+}
+
+.projects-nav-right span:last-child {
+    padding: 6px 16px;
+    background: rgb(220, 223, 228);
+    color: #5f5e5e;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.projects-nav-right span:last-child:hover {
+    color: #313131;
+    opacity: 0.9;
+}
+
+.invite_code {
+    padding: 5px 0px;
+    border-radius: 5px;
+    border: 2px solid rgb(186, 191, 195);
+    margin: 10px 0 20px 0;
+}
+
+.projects-nav-center {
+    flex: 1;
+    text-align: center;
+}
+
+/* ===== 内容区（横向）===== */
+.projects-body {
+    flex: 1;
+    /* ★ 保留！它控制的是「这一行自己多高」 */
+    min-height: 0;
+    /* ★ 允许它比内容矮，否则横向滚动不会出现 */
+
+    align-items: flex-start;
+    /* ★ 新增。它控制的是「卡片多高」：
+    默认 stretch = 每张卡都被拉满整行高度，
+    flex-start = 按内容自己长。两个需求归两个属性管 */
+
+    display: flex;
+    gap: 16px;
+    padding: 15px;
+    overflow-x: auto;
+    /* 只有这里横向滚 */
+    overflow-y: hidden;
+}
+
+/* ===== 分类卡片 ===== */
+.card {
+    flex: none;
+    /* 定宽、不伸不缩（拖拽排序要靠这个） */
+    width: 270px;
+
+    display: flex;
+    /* ★★ 缺的就是这两行 ★★ */
+    flex-direction: column;
+    /*     内部三段式的前提 */
+
+    max-height: 70vh;
+    /* ★ 高度上限：内容少时按内容，内容多了到此为止 */
+    overflow: hidden;
+    /* 圆角裁切；滚动交给 .project-display，别放在这里 */
+
+    background-color: #202020;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    padding: 7px;
+    padding-top: 0;
+}
+
+/* 标记卡片 */
+.sign-card {
+    border-top: 5px solid rgb(216, 213, 66);
+}
+
+/* ===== 拖拽 ===== */
+
+/*
+ * 拖动区：只有「标题栏」能按
+ *
+ * JS 那边是两个 ref 分工：
+ *   setNodeRef          → 整张卡片（会移动的那个）
+ *   setActivatorNodeRef → 标题栏（按住才能拖的那个）
+ *
+ * 为什么不让整张卡片都能按（原来那样）：
+ * .project-item 占了卡片绝大部分面积，以后它自己也要能拖（上下排序）。
+ * 两个 draggable 在几何上重叠时只能靠 stopPropagation 抢，
+ * 被抢的那一边就会「按下去完全没反应」。
+ * 把「按哪里」和「谁移动」拆开，就没有争抢了。
+ */
+.card-title {
+    cursor: grab;
+}
+
+/* 标题栏里那几个不是拖动区的东西，光标各自归位 */
+.card-title .trello-title { cursor: text; }
+.card-title .card-setting { cursor: pointer; }
+
+.card.is-dragging .card-title {
+    cursor: grabbing;
+}
+
+.card.is-dragging {
+    opacity: 0.6;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    /* 拖动中不要有过渡，不然跟手会慢半拍 */
+    transition: none !important;
+}
+
+.project-item.is-dragging{
+    box-sizing: border-box;
+    border: #4dd8cf 3px solid;
+    transition: none !important;
+}
+
+/* ===== DragOverlay 里的「影子」=====
+ *
+ * 它渲染在 portal 里（不在 .projects-body 里），所以：
+ *   ① 不会被 .projects-body 的 overflow 裁掉 —— 这是用 overlay 的主要好处
+ *   ② 脱离了 flex 布局，尺寸得自己定（.card 本来就有 width / max-height，够用）
+ *
+ * ⚠️ pointer-events: none 不能省：影子是纯装饰，
+ *    不能让它挡在鼠标下面影响碰撞检测。
+ */
+.card.is-preview {
+    opacity: 0.92;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    cursor: grabbing;
+    pointer-events: none;
+}
+
+/* 预览里没有 textarea，用一个 span 顶替标题 */
+.preview-title {
+    flex: 1;
+    padding: 4px 6px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #d7d5d5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 拖项目时的影子 */
+.project-item.is-preview {
+    opacity: 0.92;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+    cursor: grabbing;
+    pointer-events: none;
+}
+
+/* 这些地方不该显示"抓取"光标，它们不是拖动区 */
+.trello-title,
+.card-content,
+.card-setting,
+.add-card,
+.card-confirm-btn,
+.card-cancel-btn {
+    cursor: auto;
+}
+
+.trello-title,
+.card-content {
+    cursor: text;
+}
+
+.card-setting,
+.add-card,
+.card-confirm-btn,
+.card-cancel-btn {
+    cursor: pointer;
+}
+
+
+/* --- 头部：固定 --- */
+.card-title {
+    flex: none;
+    /* 不参与伸缩 → 永远在最上面（现在这句才真的生效） */
+    width: 100%;
+    padding: 10px 5px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    background-color: #202020;
+    color: #c2c2c2;
+    font-weight: 600;
+}
+
+.trello-title {
+    /* flex: 1; */
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 18px;
+    font-weight: 600;
+    color: #d7d5d5;
+    line-height: 1.4;
+    resize: none;
+    overflow: hidden;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-family: inherit;
+    transition: background 0.2s;
+    width: 60%;
+}
+
+/* ⚠️ 原来是浅灰 #f0f0f0 背景 —— 配浅灰文字 #d7d5d5 等于文字消失。
+   用半透明白代替，深色底上提亮但不刺眼。 */
+.trello-title:hover {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+.trello-title:focus {
+    background: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 0 0 2px #667eea;
+}
+
+.trello-title::placeholder {
+    color: #7d7d7d;
+}
+
+/* 显示当前卡片中项目的数量 */
+
+.project-number {
+    position: relative;
+    margin: 0 10px;
+}
+
+/* 提示框 */
+.project-number::after {
+    content: attr(datatip);
+    /* 读取 data-tip 的值 */
+    position: absolute;
+    top: 150%;
+    /* 在元素上方 */
+    left: 50%;
+    transform: translateX(-50%);
+
+    background: #333;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 400;
+
+    opacity: 0;
+    /* 默认隐藏 */
+    visibility: hidden;
+    transition: all 0.3s;
+    pointer-events: none;
+    /* 不挡鼠标 */
+    z-index: 10;
+    transition-delay: 0s;
+}
+
+/* 悬浮时显示 */
+.project-number:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: .3s;
+}
+
+/* 卡片设置 */
+.card-setting {
+    padding: 5px;
+    border-radius: 5px;
+}
+
+.card-setting:hover {
+    background: rgba(255, 255, 255, 0.10);
+    cursor: pointer;
+}
+
+/* --- 中间：唯一会滚的地方 --- */
+.project-display {
+    flex: 1;
+    /* 吃掉剩余高度（父级是 flex 之后这句才生效） */
+    min-height: 0;
+    /* ★ 允许比内容矮，才会滚 */
+    overflow-y: auto;
+    /* ★ 滚动只发生在这一层 */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.project-display::-webkit-scrollbar {
+    display: none;
+}
+
+.project-display {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.project-item {
+    flex: none;
+    /* 项目卡片不被压扁 */
+    position: relative;
+    padding: 9px 11px;
+    background-color: rgb(36, 37, 40);
+    border-radius: 6px;
+    color: #b0b9c7;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.project-item:hover {
+    background: #5a5a5a;
+    box-shadow: inset 0px 0px 0px 2px rgb(77, 105, 169);
+    box-sizing: border-box;
+}
+
+/* 添加卡片操作 */
+.card-content {
+    /* flex: 1; */
+    margin-top: 3px;
+    border: none;
+    outline: none;
+    font-weight: 500;
+    color: #d7d5d5;
+    background-color: rgb(36, 37, 40);
+    line-height: 1.4;
+    resize: none;
+    overflow: hidden;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: inherit;
+    transition: background 0.2s;
+    width: 100%;
+}
+
+.card-content:hover {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+.card-content:focus {
+    background: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 0 0 2px #667eea;
+
+}
+
+.card-content::placeholder {
+    color: #7d7d7d;
+}
+
+.card-confirm-btn {
+    background-color: rgb(113, 156, 240);
+    border: none;
+    padding: 0px 10px;
+    border-radius: 5px;
+    margin-right: 5px;
+    font-weight: 500;
+}
+
+.card-confirm-btn:hover {
+    cursor: pointer;
+    background-color: rgb(126, 151, 201);
+}
+
+.card-cancel-btn {
+    background: none;
+    border: none;
+    color: #b0b9c7;
+    font-size: 28px;
+    font-weight: 100;
+    padding: 0px 7px;
+    border-radius: 2px;
+}
+
+.card-cancel-btn:hover {
+    cursor: pointer;
+    background-color: rgb(78, 79, 82);
+}
+
+/* --- 底部：固定 --- */
+.add-card {
+    flex: none;
+    /* 不参与滚动与伸缩 → 永远钉在最下面 */
+    padding: 10px 14px;
+    color: #5e6c84;
+    font-size: 14px;
+    font-weight: 600;
+    background-color: #202020;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: all .3s;
+}
+
+.add-card:hover {
+    background: #565648;
+    color: #172b4d;
+}
+
+/* ===== 末尾那个「新建分类」的卡片 ===== */
+/* 它在 SortableContext 之外，所以不参与拖拽排序 */
+.card-add {
+    flex: none;
+    width: 260px;
+    min-height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #e6e6e6;
+    font-size: 15px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px dashed rgba(255, 255, 255, 0.35);
+    border-radius: 10px;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.card-add:hover {
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.6);
+    color: #fff;
+}
+
+
+/* modal专区 */
+
+.project-titleA {
+    flex: 0 0 18%;
+    text-align: center;
+    border-radius: 5px;
+    user-select: none;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+.project-titleB {
+    flex: 0 0 12%;
+    text-align: center;
+    border-radius: 5px;
+    user-select: none;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+.project-titleA:hover,
+.project-titleB:hover {
+    background-color: #c9c9c9;
+}
+
+.project-name,
+.project-description {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+    outline: none;
+    resize: vertical;
+    /* 允许用户自己拖高度 */
+}
+
+.project-name {
+    min-height: 42px;
+}
+
+.project-description {
+    min-height: 160px;
+}
+
+.project-name:focus,
+.project-description:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+.card-modal-setting .setting {
+    border-radius: 5px;
+    padding: 8px 4px;
+    margin: 12px 0;
+    border: 2px solid rgb(190, 186, 186);
+    transition: all .3s;
+}
+
+.card-modal-setting .setting:hover {
+    background-color: #d5d5d5;
+    transform: translateY(-3px);
+    box-shadow: 0px 10px 10px 0px rgb(164, 164, 164);
+}
+
+.card-modal-setting .setting:active {
+    background-color: #c7c7c7;
+    border: #a7adc4 2px solid;
+    color: rgb(67, 90, 90);
+}
+
+/* 添加列表操作 */
+.list-content {
+    /* flex: 1; */
+    margin: 4px 0px 10px 0px;
+    border: none;
+    outline: none;
+    font-weight: 500;
+    color: #d7d5d5;
+    background-color: rgb(36, 37, 40);
+    line-height: 1.4;
+    resize: none;
+    overflow: hidden;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: inherit;
+    transition: background 0.2s;
+    width: 100%;
+}
+
+.list-content:hover {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+.list-content:focus {
+    background: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 0 0 2px #667eea;
+
+}
+
+.list-content::placeholder {
+    color: #7d7d7d;
+}
+
+.list-confirm-btn {
+    background-color: rgb(113, 156, 240);
+    border: none;
+    padding: 0px 10px;
+    border-radius: 5px;
+    margin-right: 25px;
+    font-weight: 500;
+}
+
+.list-confirm-btn:hover {
+    cursor: pointer;
+    background-color: rgb(126, 151, 201);
+}
+
+.list-cancel-btn {
+    background: none;
+    border: none;
+    color: #b0b9c7;
+    font-size: 28px;
+    font-weight: 100;
+    padding: 0px 7px;
+    border-radius: 2px;
+}
+
+.list-cancel-btn:hover {
+    cursor: pointer;
+    background-color: rgb(78, 79, 82);
+}
+
+.isMember {
+    pointer-events: none;
+}
